@@ -20,6 +20,7 @@ import { UsuarioApiService } from '../../core/services/usuario-api.service';
 import { ComentarioApiService } from '../../core/services/comentario-api.service';
 import { TicketApiService } from '../../core/services/ticket-api.service';
 import { Ticket } from '../../core/models/ticket.model';
+import { RankingAgente } from '../../core/models/ticket.model';
 import { PrioridadTicketLabel } from '../../core/models/enums';
 
 interface KpiAdmin {
@@ -345,31 +346,37 @@ const ESTADO_LABELS: Record<string, string> = {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
           <mat-card>
             <mat-card-header>
-              <mat-card-title>Top 5 usuarios con más comentarios</mat-card-title>
+              <mat-card-title>Mejores agentes</mat-card-title>
             </mat-card-header>
             <mat-card-content>
-              @if (sectionError('topComentarios')) {
+              @if (sectionError('mejoresAgentes')) {
                 <div class="empty-state">
                   <mat-icon class="empty-icon text-red-400">error_outline</mat-icon>
-                  <p>No se pudo cargar el ranking de comentarios.</p>
+                  <p>No se pudo cargar el ranking de agentes.</p>
                 </div>
-              } @else if (topComentarios().length === 0) {
+              } @else if (mejoresAgentes().length === 0) {
                 <div class="empty-state">
-                  <mat-icon class="empty-icon text-gray-400">chat</mat-icon>
-                  <p>Aún no hay comentarios.</p>
+                  <mat-icon class="empty-icon text-gray-400">star_border</mat-icon>
+                  <p>Aún no hay agentes calificados.</p>
                 </div>
               } @else {
-                <table mat-table [dataSource]="topComentarios()" class="w-full">
-                  <ng-container matColumnDef="usuario">
-                    <th mat-header-cell *matHeaderCellDef>Usuario</th>
-                    <td mat-cell *matCellDef="let r">{{ r.usuario }}</td>
+                <table mat-table [dataSource]="mejoresAgentes()" class="w-full">
+                  <ng-container matColumnDef="agente">
+                    <th mat-header-cell *matHeaderCellDef>Agente</th>
+                    <td mat-cell *matCellDef="let r">{{ r.nombres }} {{ r.apellidos }}</td>
+                  </ng-container>
+                  <ng-container matColumnDef="promedio">
+                    <th mat-header-cell *matHeaderCellDef class="!text-right">Promedio</th>
+                    <td mat-cell *matCellDef="let r" class="!text-right font-semibold">
+                      {{ r.promedio.toFixed(1) }} ⭐
+                    </td>
                   </ng-container>
                   <ng-container matColumnDef="total">
-                    <th mat-header-cell *matHeaderCellDef class="!text-right">Comentarios</th>
-                    <td mat-cell *matCellDef="let r" class="!text-right font-semibold">{{ r.total }}</td>
+                    <th mat-header-cell *matHeaderCellDef class="!text-right">Tickets</th>
+                    <td mat-cell *matCellDef="let r" class="!text-right">{{ r.totalTickets }}</td>
                   </ng-container>
-                  <tr mat-header-row *matHeaderRowDef="colsTop"></tr>
-                  <tr mat-row *matRowDef="let row; columns: colsTop;"></tr>
+                  <tr mat-header-row *matHeaderRowDef="colsMejores"></tr>
+                  <tr mat-row *matRowDef="let row; columns: colsMejores;"></tr>
                 </table>
               }
             </mat-card-content>
@@ -399,7 +406,7 @@ const ESTADO_LABELS: Record<string, string> = {
                   <ng-container matColumnDef="titulo">
                     <th mat-header-cell *matHeaderCellDef>Título</th>
                     <td mat-cell *matCellDef="let t" class="truncate max-w-xs">
-                      <a [routerLink]="['/tickets', t.id]" class="text-blue-600 hover:underline">{{ t.titulo }}</a>
+                      <a [routerLink]="['/tickets', t.id]" [queryParams]="{ from: 'dashboard' }" class="text-blue-600 hover:underline">{{ t.titulo }}</a>
                     </td>
                   </ng-container>
                   <ng-container matColumnDef="prioridad">
@@ -417,7 +424,7 @@ const ESTADO_LABELS: Record<string, string> = {
                   <ng-container matColumnDef="acciones">
                     <th mat-header-cell *matHeaderCellDef class="!text-right"></th>
                     <td mat-cell *matCellDef="let t" class="!text-right">
-                      <a [routerLink]="['/tickets', t.id]" mat-icon-button color="primary" matTooltip="Ver ticket">
+                      <a [routerLink]="['/tickets', t.id]" [queryParams]="{ from: 'dashboard' }" mat-icon-button color="primary" matTooltip="Ver ticket">
                         <mat-icon>visibility</mat-icon>
                       </a>
                     </td>
@@ -453,7 +460,7 @@ const ESTADO_LABELS: Record<string, string> = {
                 <ng-container matColumnDef="titulo">
                   <th mat-header-cell *matHeaderCellDef>Título</th>
                   <td mat-cell *matCellDef="let t">
-                    <a [routerLink]="['/tickets', t.id]" class="text-blue-600 hover:underline">{{ t.titulo }}</a>
+                    <a [routerLink]="['/tickets', t.id]" [queryParams]="{ from: 'dashboard' }" class="text-blue-600 hover:underline">{{ t.titulo }}</a>
                   </td>
                 </ng-container>
                 <ng-container matColumnDef="estado">
@@ -524,7 +531,7 @@ export class DashboardComponent implements OnInit {
   protected ticketsPorMes = signal<{ name: string; value: number }[]>([]);
   protected rankingEmpresas = signal<{ name: string; value: number }[]>([]);
   protected usuariosPorRol = signal<{ name: string; value: number }[]>([]);
-  protected topComentarios = signal<{ usuario: string; total: number }[]>([]);
+  protected mejoresAgentes = signal<RankingAgente[]>([]);
   protected ticketsPrioridadAlta = signal<Ticket[]>([]);
 
   // Agente state
@@ -543,7 +550,7 @@ export class DashboardComponent implements OnInit {
   });
 
   // Table columns
-  protected colsTop = ['usuario', 'total'];
+  protected colsMejores = ['agente', 'promedio', 'total'];
   protected colsMes = ['mes', 'total'];
   protected colsPrioridad = ['codigo', 'titulo', 'prioridad', 'fecha', 'acciones'];
   protected colsAgente = ['codigo', 'titulo', 'estado', 'prioridad', 'fecha'];
@@ -600,9 +607,9 @@ export class DashboardComponent implements OnInit {
       dashboard: this.reportes.dashboard(eid, this.anio()).pipe(catchError(() => of(null))),
       ranking: this.empresas.ranking().pipe(catchError(() => of(null))),
       conteoRol: this.usuarios.contarPorRol(eid).pipe(catchError(() => of(null))),
-      rankingComentarios: this.comentarios.rankingUsuarios(eid).pipe(catchError(() => of(null))),
+      mejoresAgentes: this.tickets.rankingAgentes(eid).pipe(catchError(() => of(null))),
       prioridadAlta: this.tickets.prioridadAlta(eid).pipe(catchError(() => of(null))),
-    }).subscribe(({ dashboard, ranking, conteoRol, rankingComentarios, prioridadAlta }) => {
+    }).subscribe(({ dashboard, ranking, conteoRol, mejoresAgentes, prioridadAlta }) => {
       const errs: Record<string, boolean> = {};
 
       if (dashboard) {
@@ -648,16 +655,20 @@ export class DashboardComponent implements OnInit {
         errs['usuariosPorRol'] = true;
       }
 
-      if (rankingComentarios) {
-        this.topComentarios.set(rankingComentarios.slice(0, 5));
-        errs['topComentarios'] = false;
+      if (mejoresAgentes) {
+        this.mejoresAgentes.set(mejoresAgentes.slice(0, 5));
+        errs['mejoresAgentes'] = false;
       } else {
-        errs['topComentarios'] = true;
+        errs['mejoresAgentes'] = true;
       }
 
       if (prioridadAlta) {
         this.ticketsPrioridadAlta.set(
-          [...prioridadAlta].sort((a, b) => (b.fechaCreacion || '').localeCompare(a.fechaCreacion || ''))
+          // Solo mostramos tickets activos: los RESUELTO/CERRADO ya fueron
+          // atendados y no aporta nada listarlos como prioritarios.
+          [...prioridadAlta]
+            .filter((t) => t.estado !== 'RESUELTO' && t.estado !== 'CERRADO')
+            .sort((a, b) => (b.fechaCreacion || '').localeCompare(a.fechaCreacion || ''))
         );
         errs['prioridadAlta'] = false;
       } else {
@@ -675,9 +686,9 @@ export class DashboardComponent implements OnInit {
       dashboard: this.reportes.dashboardGlobal(this.anio()).pipe(catchError(() => of(null))),
       ranking: this.empresas.ranking().pipe(catchError(() => of(null))),
       prioridadAlta: this.tickets.prioridadAltaGlobal().pipe(catchError(() => of(null))),
-      rankingComentarios: this.comentarios.rankingUsuarios().pipe(catchError(() => of(null))),
+      mejoresAgentes: this.tickets.rankingAgentes().pipe(catchError(() => of(null))),
       conteoRol: this.usuarios.contarPorRol().pipe(catchError(() => of(null))),
-    }).subscribe(({ dashboard, ranking, prioridadAlta, rankingComentarios, conteoRol }) => {
+    }).subscribe(({ dashboard, ranking, prioridadAlta, mejoresAgentes, conteoRol }) => {
       const errs: Record<string, boolean> = {};
 
       if (dashboard) {
@@ -716,18 +727,21 @@ export class DashboardComponent implements OnInit {
 
       if (prioridadAlta) {
         this.ticketsPrioridadAlta.set(
-          [...prioridadAlta].sort((a, b) => (b.fechaCreacion || '').localeCompare(a.fechaCreacion || ''))
+          // Solo tickets activos: los RESUELTO/CERRADO ya no son prioritarios.
+          [...prioridadAlta]
+            .filter((t) => t.estado !== 'RESUELTO' && t.estado !== 'CERRADO')
+            .sort((a, b) => (b.fechaCreacion || '').localeCompare(a.fechaCreacion || ''))
         );
         errs['prioridadAlta'] = false;
       } else {
         errs['prioridadAlta'] = true;
       }
 
-      if (rankingComentarios) {
-        this.topComentarios.set(rankingComentarios.slice(0, 5));
-        errs['topComentarios'] = false;
+      if (mejoresAgentes) {
+        this.mejoresAgentes.set(mejoresAgentes.slice(0, 5));
+        errs['mejoresAgentes'] = false;
       } else {
-        errs['topComentarios'] = true;
+        errs['mejoresAgentes'] = true;
       }
 
       if (conteoRol) {

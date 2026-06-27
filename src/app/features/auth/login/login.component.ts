@@ -70,6 +70,9 @@ import { AuthService } from '../../../core/auth/auth.service';
             <div class="text-center text-sm text-gray-600 mt-2">
               ¿No tienes cuenta? <a routerLink="/register" class="text-primary-600 hover:underline">Regístrate</a>
             </div>
+            <div class="text-center text-sm text-gray-600 mt-1">
+              ¿Necesitas ayuda? <a routerLink="/reportar-problema" class="text-primary-600 hover:underline font-medium">Reportar un problema</a>
+            </div>
           </form>
         </mat-card-content>
       </mat-card>

@@ -34,7 +34,7 @@ import { environment } from '../../../../environments/environment';
   ],
   template: `
     <div class="flex items-center gap-2 mb-4">
-      <a mat-icon-button routerLink="/tickets"><mat-icon>arrow_back</mat-icon></a>
+      <a mat-icon-button [routerLink]="[backUrl()]"><mat-icon>arrow_back</mat-icon></a>
       <h1 class="text-2xl font-bold">Ticket {{ ticket()?.codigo }}</h1>
     </div>
 
@@ -71,6 +71,42 @@ import { environment } from '../../../../environments/environment';
                   <button mat-stroked-button color="primary" (click)="verImagenCierre()">
                     <mat-icon>zoom_in</mat-icon> Ver imagen de cierre
                   </button>
+                </div>
+              }
+
+              <!-- Calificación del agente por parte del cliente dueño -->
+              @if (rol() === 'CLIENTE' && ticket()!.estado === 'RESUELTO' && ticket()!.agenteAsignado) {
+                <div class="mt-3 p-3 border rounded bg-yellow-50">
+                  @if (!ticket()!.calificacionAgente) {
+                    <div class="text-sm font-medium text-gray-700 mb-1">Califica la atención recibida:</div>
+                    <div class="flex items-center gap-1">
+                      @for (s of [1,2,3,4,5]; track s) {
+                        <button mat-icon-button type="button"
+                                (click)="calificar(s)"
+                                (mouseenter)="hoverCalificacion.set(s)"
+                                (mouseleave)="hoverCalificacion.set(0)"
+                                [disabled]="calificando()"
+                                class="!w-10 !h-10">
+                          <mat-icon class="text-yellow-500" style="font-size:32px">
+                            {{ (hoverCalificacion() >= s) ? 'star' : 'star_border' }}
+                          </mat-icon>
+                        </button>
+                      }
+                      <span class="text-sm text-gray-500 ml-2">
+                        {{ (hoverCalificacion() || 0) }} / 5
+                      </span>
+                    </div>
+                  } @else {
+                    <div class="text-sm font-medium text-gray-700 mb-1">Tu calificación:</div>
+                    <div class="flex items-center gap-1">
+                      @for (s of [1,2,3,4,5]; track s) {
+                        <mat-icon class="text-yellow-500" style="font-size:28px">
+                          {{ s <= (ticket()!.calificacionAgente || 0) ? 'star' : 'star_border' }}
+                        </mat-icon>
+                      }
+                      <span class="text-sm text-gray-600 ml-2 italic">Gracias por tu calificación</span>
+                    </div>
+                  }
                 </div>
               }
             </div>
@@ -121,12 +157,19 @@ import { environment } from '../../../../environments/environment';
               }
             }
             @if (rol() === 'ADMIN_EMPRESA' || rol() === 'ADMIN_OWNER') {
-              <button mat-stroked-button color="primary" (click)="abrirAsignar()">
-                <mat-icon>person_add</mat-icon> Asignar Agente
-              </button>
-              <button mat-stroked-button color="accent" (click)="abrirCambiarEstado()">
-                <mat-icon>sync</mat-icon> Cambiar Estado
-              </button>
+              @if (ticket()!.estado !== 'RESUELTO' && ticket()!.estado !== 'CERRADO') {
+                <button mat-stroked-button color="primary" (click)="abrirAsignar()">
+                  <mat-icon>person_add</mat-icon> Asignar Agente
+                </button>
+                <button mat-stroked-button color="accent" (click)="abrirCambiarEstado()">
+                  <mat-icon>sync</mat-icon> Cambiar Estado
+                </button>
+              } @else {
+                <p class="text-sm text-gray-500 italic flex items-center gap-1">
+                  <mat-icon style="font-size:16px">lock</mat-icon>
+                  Ticket {{ getEstadoLabel(ticket()!.estado).toLowerCase() }}: acciones bloqueadas.
+                </p>
+              }
             }
           </mat-card-content>
         </mat-card>
@@ -151,7 +194,7 @@ import { environment } from '../../../../environments/environment';
                 <p class="text-gray-500 italic">Sin comentarios aún.</p>
               }
             </div>
-            @if (ticket()!.estado !== 'CERRADO' && rol() !== 'CLIENTE' && rol() !== 'ADMIN_EMPRESA') {
+            @if (ticket()!.estado !== 'CERRADO' && ticket()!.estado !== 'RESUELTO' && rol() !== 'CLIENTE' && rol() !== 'ADMIN_EMPRESA') {
               <form [formGroup]="comentarioForm" (ngSubmit)="enviarComentario()" class="flex gap-2">
                 <mat-form-field appearance="outline" class="flex-1">
                   <mat-label>Nuevo comentario</mat-label>
@@ -161,6 +204,11 @@ import { environment } from '../../../../environments/environment';
                   <mat-icon>send</mat-icon>
                 </button>
               </form>
+            } @else if (ticket()!.estado === 'RESUELTO' || ticket()!.estado === 'CERRADO') {
+              <p class="text-sm text-gray-500 italic flex items-center gap-1">
+                <mat-icon style="font-size:16px">lock</mat-icon>
+                Los comentarios están bloqueados porque el ticket está {{ getEstadoLabel(ticket()!.estado).toLowerCase() }}.
+              </p>
             }
           </mat-card-content>
         </mat-card>
@@ -191,10 +239,19 @@ export class TicketDetailComponent implements OnInit {
   protected selectedFile = signal<File | null>(null);
   protected previewUrl = signal<string | null>(null);
   protected resolucionJustificacion = '';
+  // Calificación del agente por parte del cliente.
+  protected hoverCalificacion = signal(0);
+  protected calificando = signal(false);
 
   protected rol = computed(() => this.auth.getRol());
   protected userId = computed(() => this.auth.getUserId());
   protected imageBaseUrl = environment.apiBaseUrl.replace('/api', '');
+
+  // Destino del botón "volver": si se llegó desde el dashboard, regresa ahí;
+  // en caso contrario vuelve al listado de tickets.
+  protected backUrl = computed(() =>
+    this.route.snapshot.queryParamMap.get('from') === 'dashboard' ? '/dashboard' : '/tickets'
+  );
 
   ngOnInit(): void {
     const id = Number(this.route.snapshot.paramMap.get('id'));
@@ -310,6 +367,26 @@ export class TicketDetailComponent implements OnInit {
     this.selectedFile.set(null);
     this.previewUrl.set(null);
     this.resolucionJustificacion = '';
+  }
+
+  calificar(estrellas: number): void {
+    const ticket = this.ticket();
+    if (!ticket || ticket.calificacionAgente) return;
+    this.calificando.set(true);
+    this.ticketApi.calificar(ticket.id, estrellas).subscribe({
+      next: (t) => {
+        this.ticket.set(t);
+        this.calificando.set(false);
+        this.hoverCalificacion.set(0);
+        this.cargarComentarios(t.id);
+        this.snack.open('¡Gracias por tu calificación!', 'OK', { duration: 2500, panelClass: ['snack-success'] });
+      },
+      error: (err) => {
+        this.calificando.set(false);
+        const msg = err?.error?.message || 'No se pudo guardar la calificación.';
+        this.snack.open(msg, 'Cerrar', { duration: 4000, panelClass: ['snack-error'] });
+      },
+    });
   }
 
   verImagenCierre(): void {

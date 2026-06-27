@@ -11,6 +11,8 @@ export interface Ticket {
   prioridad: PrioridadTicket;
   justificacionCierre?: string;
   imagenCierre?: string;
+  // Calificación (1-5 estrellas) que el cliente da al agente al resolver.
+  calificacionAgente?: number | null;
   fechaCreacion: string;
   fechaActualizacion: string;
   telefonoReportante?: string;
@@ -42,4 +44,13 @@ export interface CierreRequest {
 
 export interface AsignarAgenteRequest {
   agenteId: number;
+}
+
+/** Fila del ranking de mejores agentes. El backend devuelve un arreglo en este orden. */
+export interface RankingAgente {
+  agenteId: number;
+  nombres: string;
+  apellidos: string;
+  promedio: number;
+  totalTickets: number;
 }

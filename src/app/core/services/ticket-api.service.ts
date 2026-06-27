@@ -8,6 +8,7 @@ import {
   CierreRequest,
   EstadoTicket,
   PrioridadTicket,
+  RankingAgente,
   Ticket,
   TicketConComentarioRequest,
 } from '../models/ticket.model';
@@ -84,5 +85,17 @@ export class TicketApiService {
   }
   guardarCierre(id: number, payload: CierreRequest): Observable<Ticket> {
     return this.http.patch<Ticket>(`${this.url}/${id}/cierre`, payload);
+  }
+
+  /** El cliente dueño califica (1-5) la atención de un ticket resuelto. */
+  calificar(id: number, calificacion: number): Observable<Ticket> {
+    return this.http.post<Ticket>(`${this.url}/${id}/calificar`, { calificacion });
+  }
+
+  /** Ranking de mejores agentes por promedio de calificación. */
+  rankingAgentes(empresaId?: number): Observable<RankingAgente[]> {
+    let params = new HttpParams();
+    if (empresaId) params = params.set('empresaId', String(empresaId));
+    return this.http.get<RankingAgente[]>(`${this.url}/ranking-agentes`, { params });
   }
 }

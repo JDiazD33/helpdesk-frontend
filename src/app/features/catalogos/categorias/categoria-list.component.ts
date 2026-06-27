@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, inject, signal, OnInit, OnDestroy } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, signal, computed, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -12,7 +12,9 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { ReactiveFormsModule, FormBuilder, Validators, FormsModule } from '@angular/forms';
 import { Subject, EMPTY, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
 import { CategoriaApiService } from '../../../core/services/categoria-api.service';
+import { EmpresaApiService } from '../../../core/services/empresa-api.service';
 import { Categoria, CategoriaRequest } from '../../../core/models/categoria.model';
+import { Empresa } from '../../../core/models/empresa.model';
 import { AuthService } from '../../../core/auth/auth.service';
 
 @Component({
@@ -31,7 +33,18 @@ import { AuthService } from '../../../core/auth/auth.service';
         <mat-icon>add</mat-icon> Nueva Categoría
       </button>
     </div>
-    <div class="mb-4">
+    <div class="mb-4 flex flex-wrap gap-3 items-end">
+      @if (rol() === 'ADMIN_OWNER') {
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="min-w-[240px]">
+          <mat-label>Filtrar por empresa</mat-label>
+          <mat-select [value]="empresaFiltro()" (selectionChange)="onEmpresaChange($event.value)">
+            <mat-option [value]="0">Todas las empresas</mat-option>
+            @for (e of empresas(); track e.id) {
+              <mat-option [value]="e.id">{{ e.nombre }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      }
       <mat-form-field appearance="outline" class="min-w-[300px]" subscriptSizing="dynamic">
         <mat-label>Buscar por nombre o descripción</mat-label>
         <input
@@ -63,6 +76,9 @@ import { AuthService } from '../../../core/auth/auth.service';
                 <tr class="border-b text-sm font-medium text-gray-600">
                   <th class="py-3 px-4">Nombre</th>
                   <th class="py-3 px-4">Descripción</th>
+                  @if (rol() === 'ADMIN_OWNER') {
+                    <th class="py-3 px-4">Empresa</th>
+                  }
                   <th class="py-3 px-4">Estado</th>
                   <th class="py-3 px-4">Acciones</th>
                 </tr>
@@ -72,6 +88,9 @@ import { AuthService } from '../../../core/auth/auth.service';
                   <tr class="border-b hover:bg-gray-50">
                     <td class="py-3 px-4">{{ c.nombre }}</td>
                     <td class="py-3 px-4">{{ c.descripcion }}</td>
+                    @if (rol() === 'ADMIN_OWNER') {
+                      <td class="py-3 px-4">{{ c.empresaNombre || '-' }}</td>
+                    }
                     <td class="py-3 px-4">
                       <span class="badge" [ngClass]="c.activa ? 'badge-resuelto' : 'badge-cerrado'">
                         {{ c.activa ? 'Activa' : 'Inactiva' }}
@@ -124,6 +143,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 })
 export class CategoriaListComponent implements OnInit, OnDestroy {
   private api = inject(CategoriaApiService);
+  private empresaApi = inject(EmpresaApiService);
   private auth = inject(AuthService);
   private snack = inject(MatSnackBar);
   private dialog = inject(MatDialog);
@@ -134,6 +154,11 @@ export class CategoriaListComponent implements OnInit, OnDestroy {
   protected limit = 5;
   protected totalItems = 0;
   protected totalPages = 0;
+
+  // Filtro por empresa (solo ADMIN_OWNER): 0 = todas.
+  protected empresaFiltro = signal<number>(0);
+  protected empresas = signal<Empresa[]>([]);
+  protected rol = computed(() => this.auth.user()?.rol ?? null);
 
   private fetchTrigger = new Subject<void>();
   private searchSubj = new Subject<string>();
@@ -149,7 +174,13 @@ export class CategoriaListComponent implements OnInit, OnDestroy {
         const rol = this.auth.user()?.rol;
         const eid = this.auth.getEmpresaId();
         const search = this.searchTerm() || undefined;
-        if (rol === 'ADMIN_OWNER') return this.api.buscarPaginadoGlobal(this.currentPage, this.limit, search);
+        // ADMIN_OWNER: si eligió una empresa concreta, lista solo la de esa empresa;
+        // si eligió "Todas", usa la vista global.
+        if (rol === 'ADMIN_OWNER') {
+          const filtro = this.empresaFiltro();
+          if (filtro > 0) return this.api.buscarPaginado(filtro, this.currentPage, this.limit, search);
+          return this.api.buscarPaginadoGlobal(this.currentPage, this.limit, search);
+        }
         if (eid) return this.api.buscarPaginado(eid, this.currentPage, this.limit, search);
         this.loading.set(false);
         return EMPTY;
@@ -166,7 +197,17 @@ export class CategoriaListComponent implements OnInit, OnDestroy {
     }),
   ];
 
-  ngOnInit(): void { this.fetchTrigger.next(); }
+  ngOnInit(): void {
+    // El ADMIN_OWNER necesita el listado de empresas para el filtro y para
+    // elegir a cuál pertenece la nueva categoría.
+    if (this.rol() === 'ADMIN_OWNER') {
+      this.empresaApi.listarTodas().subscribe({
+        next: (empresas) => this.empresas.set(empresas),
+        error: () => this.empresas.set([]),
+      });
+    }
+    this.fetchTrigger.next();
+  }
 
   ngOnDestroy(): void { this.subs.forEach(s => s.unsubscribe()); }
 
@@ -190,12 +231,28 @@ export class CategoriaListComponent implements OnInit, OnDestroy {
     this.fetchTrigger.next();
   }
 
+  onEmpresaChange(empresaId: number): void {
+    this.empresaFiltro.set(empresaId);
+    this.currentPage = 1;
+    this.fetchTrigger.next();
+  }
+
   abrirForm(): void {
-    const ref = this.dialog.open(CategoriaFormDialog, { width: '400px' });
-    ref.afterClosed().subscribe((payload?: CategoriaRequest) => {
+    // ADMIN_OWNER elige la empresa en el diálogo; los demás roles usan la suya.
+    const data = this.rol() === 'ADMIN_OWNER'
+      ? { empresas: this.empresas(), empresaPreseleccionada: this.empresaFiltro() }
+      : null;
+    const ref = this.dialog.open(CategoriaFormDialog, { width: '450px', data });
+    ref.afterClosed().subscribe((payload?: CategoriaRequest & { empresaId?: number }) => {
       if (payload) {
-        const eid = this.auth.getEmpresaId()!;
-        this.api.guardar(payload, eid).subscribe({
+        // El owner indica la empresa; el resto usa la de su JWT.
+        const eid = this.rol() === 'ADMIN_OWNER'
+          ? (payload.empresaId ?? this.empresaFiltro() ?? 0)
+          : this.auth.getEmpresaId()!;
+        if (!eid) return;
+        // Limpiamos el empresaId del payload antes de enviar (no es parte de CategoriaRequest).
+        const { empresaId, ...categoriaData } = payload;
+        this.api.guardar(categoriaData, eid).subscribe({
           next: () => { this.snack.open('Categoría creada', 'OK', { duration: 2000, panelClass: ['snack-success'] }); this.fetchTrigger.next(); },
         });
       }
@@ -204,7 +261,12 @@ export class CategoriaListComponent implements OnInit, OnDestroy {
 
   eliminar(c: Categoria): void {
     if (!confirm(`¿Desactivar ${c.nombre}?`)) return;
-    const eid = this.auth.getEmpresaId()!;
+    // El owner elimina usando la empresa de la categoría (puede ver varias);
+    // los demás roles usan la empresa de su JWT.
+    const eid = this.rol() === 'ADMIN_OWNER'
+      ? (c.empresaId ?? this.auth.getEmpresaId()!)
+      : this.auth.getEmpresaId()!;
+    if (!eid) return;
     this.api.eliminar(c.id, eid).subscribe({
       next: () => { this.snack.open('Categoría desactivada', 'OK', { duration: 2000, panelClass: ['snack-success'] }); this.fetchTrigger.next(); },
     });
@@ -214,11 +276,24 @@ export class CategoriaListComponent implements OnInit, OnDestroy {
 @Component({
   selector: 'app-categoria-form-dialog',
   standalone: true,
-  imports: [CommonModule, MatDialogModule, MatButtonModule, MatFormFieldModule, MatInputModule, ReactiveFormsModule],
+  imports: [CommonModule, MatDialogModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatSelectModule, ReactiveFormsModule],
   template: `
     <h2 mat-dialog-title>Nueva Categoría</h2>
     <mat-dialog-content>
       <form [formGroup]="form" class="flex flex-col gap-2">
+        @if (empresas.length > 0) {
+          <mat-form-field appearance="outline">
+            <mat-label>Empresa</mat-label>
+            <mat-select formControlName="empresaId">
+              @for (e of empresas; track e.id) {
+                <mat-option [value]="e.id">{{ e.nombre }}</mat-option>
+              }
+            </mat-select>
+            @if (form.controls.empresaId.hasError('required') && form.controls.empresaId.touched) {
+              <mat-error>Selecciona una empresa</mat-error>
+            }
+          </mat-form-field>
+        }
         <mat-form-field appearance="outline"><mat-label>Nombre</mat-label><input matInput formControlName="nombre" /></mat-form-field>
         <mat-form-field appearance="outline"><mat-label>Descripción</mat-label><input matInput formControlName="descripcion" /></mat-form-field>
       </form>
@@ -231,8 +306,15 @@ export class CategoriaListComponent implements OnInit, OnDestroy {
 })
 export class CategoriaFormDialog {
   private fb = inject(FormBuilder);
-  protected ref = inject(MatDialogRef<CategoriaFormDialog>);
+  private data = inject(MAT_DIALOG_DATA, { optional: true }) as
+    { empresas: Empresa[]; empresaPreseleccionada: number } | null;
+
+  // Empresas disponibles para elegir (solo el ADMIN_OWNER recibe la lista).
+  empresas: Empresa[] = this.data?.empresas ?? [];
+
   form = this.fb.nonNullable.group({
+    // Si viene empresa preseleccionada del filtro, se usa; si no, 0 (obliga a elegir).
+    empresaId: [this.data?.empresaPreseleccionada ?? 0, [Validators.required, Validators.min(1)]],
     nombre: ['', [Validators.required, Validators.maxLength(50)]],
     descripcion: [''],
   });

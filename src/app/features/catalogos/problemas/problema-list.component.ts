@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, inject, signal, OnInit, ViewChild, AfterViewInit } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, signal, computed, OnInit, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatTableDataSource, MatTableModule } from '@angular/material/table';
 import { MatPaginator, MatPaginatorModule, PageEvent } from '@angular/material/paginator';
@@ -15,8 +15,10 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { ProblemaApiService } from '../../../core/services/problema-api.service';
 import { CategoriaApiService } from '../../../core/services/categoria-api.service';
+import { EmpresaApiService } from '../../../core/services/empresa-api.service';
 import { Problema, ProblemaRequest } from '../../../core/models/problema.model';
 import { Categoria } from '../../../core/models/categoria.model';
+import { Empresa } from '../../../core/models/empresa.model';
 import { AuthService } from '../../../core/auth/auth.service';
 
 @Component({
@@ -35,7 +37,18 @@ import { AuthService } from '../../../core/auth/auth.service';
         <mat-icon>add</mat-icon> Nuevo Problema
       </button>
     </div>
-    <div class="mb-4">
+    <div class="mb-4 flex flex-wrap gap-3 items-end">
+      @if (rol() === 'ADMIN_OWNER') {
+        <mat-form-field appearance="outline" class="min-w-[240px]">
+          <mat-label>Filtrar por empresa</mat-label>
+          <mat-select [value]="empresaId()" (selectionChange)="onEmpresaChange($event.value)">
+            <mat-option [value]="0">Todas las empresas</mat-option>
+            @for (e of empresas(); track e.id) {
+              <mat-option [value]="e.id">{{ e.nombre }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      }
       <mat-form-field appearance="outline" class="min-w-[250px]">
         <mat-label>Categoría</mat-label>
         <mat-select [value]="categoriaId()" (selectionChange)="onCategoriaChange($event.value)">
@@ -104,6 +117,7 @@ import { AuthService } from '../../../core/auth/auth.service';
 export class ProblemaListComponent implements OnInit, AfterViewInit {
   private api = inject(ProblemaApiService);
   private catApi = inject(CategoriaApiService);
+  private empresaApi = inject(EmpresaApiService);
   private auth = inject(AuthService);
   private snack = inject(MatSnackBar);
   private dialog = inject(MatDialog);
@@ -112,13 +126,30 @@ export class ProblemaListComponent implements OnInit, AfterViewInit {
   protected cols = ['nombre', 'categoria', 'descripcion', 'estado', 'acciones'];
   protected categorias = signal<Categoria[]>([]);
   protected categoriaId = signal(0);
+  // Filtro por empresa (solo ADMIN_OWNER): 0 = todas.
+  protected empresaId = signal(0);
+  protected empresas = signal<Empresa[]>([]);
   protected currentPage = 1;
   protected pageSize = 5;
   protected totalItems = 0;
   ds = new MatTableDataSource<Problema>([]);
 
+  protected rol = computed(() => this.auth.user()?.rol ?? null);
+
   ngOnInit(): void {
-    this.cargarCategorias();
+    // El ADMIN_OWNER necesita el listado de empresas para el filtro.
+    if (this.rol() === 'ADMIN_OWNER') {
+      this.empresaApi.listarTodas().subscribe({
+        next: (empresas) => this.empresas.set(empresas),
+        error: () => this.empresas.set([]),
+      });
+      // En vista global sin empresa elegida: categorías de todas las empresas.
+      this.catApi.listarTodasGlobal().subscribe(cats => this.categorias.set(cats));
+    } else {
+      // ADMIN_EMPRESA (y demás roles tenant): solo las categorías de SU empresa.
+      const eid = this.auth.getEmpresaId();
+      this.cargarCategoriasPorEmpresa(eid ?? 0);
+    }
     this.cargar();
   }
 
@@ -126,15 +157,21 @@ export class ProblemaListComponent implements OnInit, AfterViewInit {
     if (this.paginator) this.ds.paginator = this.paginator;
   }
 
-  private cargarCategorias(): void {
-    const rol = this.auth.user()?.rol;
-    if (rol === 'ADMIN_OWNER') {
-      this.catApi.listarTodasGlobal().subscribe(cats => this.categorias.set(cats));
-    } else {
-      const eid = this.auth.getEmpresaId();
-      if (!eid) return;
+  /** Carga categorías de una empresa concreta; si eid=0, todas (vista global del owner). */
+  private cargarCategoriasPorEmpresa(eid?: number): void {
+    if (eid && eid > 0) {
       this.catApi.listarTodas(eid).subscribe(cats => this.categorias.set(cats));
+    } else {
+      this.catApi.listarTodasGlobal().subscribe(cats => this.categorias.set(cats));
     }
+  }
+
+  onEmpresaChange(eid: number): void {
+    this.empresaId.set(eid);
+    this.categoriaId.set(0);
+    this.currentPage = 1;
+    this.cargarCategoriasPorEmpresa(eid);
+    this.cargar();
   }
 
   onCategoriaChange(catId: number): void {
@@ -152,16 +189,27 @@ export class ProblemaListComponent implements OnInit, AfterViewInit {
   cargar(): void {
     const rol = this.auth.user()?.rol;
     const eid = this.auth.getEmpresaId();
-    if (!eid) return;
+    if (!eid && rol !== 'ADMIN_OWNER') return;
     this.loading.set(true);
     const cat = this.categoriaId() || undefined;
+
     if (rol === 'ADMIN_OWNER') {
-      this.api.listarTodosPaginado(this.currentPage, this.pageSize, cat).subscribe({
-        next: (res) => { this.ds.data = res.data; this.totalItems = res.total; this.currentPage = res.page; this.loading.set(false); },
-        error: () => this.loading.set(false),
-      });
+      const empresaFiltro = this.empresaId();
+      // Si el owner eligió una empresa concreta, lista problemas de esa empresa;
+      // si eligió "Todas", usa la vista global.
+      if (empresaFiltro > 0) {
+        this.api.listarPaginado(empresaFiltro, this.currentPage, this.pageSize, cat).subscribe({
+          next: (res) => { this.ds.data = res.data; this.totalItems = res.total; this.currentPage = res.page; this.loading.set(false); },
+          error: () => this.loading.set(false),
+        });
+      } else {
+        this.api.listarTodosPaginado(this.currentPage, this.pageSize, cat).subscribe({
+          next: (res) => { this.ds.data = res.data; this.totalItems = res.total; this.currentPage = res.page; this.loading.set(false); },
+          error: () => this.loading.set(false),
+        });
+      }
     } else {
-      this.api.listarPaginado(eid, this.currentPage, this.pageSize, cat).subscribe({
+      this.api.listarPaginado(eid!, this.currentPage, this.pageSize, cat).subscribe({
         next: (res) => { this.ds.data = res.data; this.totalItems = res.total; this.currentPage = res.page; this.loading.set(false); },
         error: () => this.loading.set(false),
       });
@@ -169,22 +217,60 @@ export class ProblemaListComponent implements OnInit, AfterViewInit {
   }
 
   abrirForm(): void {
-    const eid = this.auth.getEmpresaId()!;
-    this.catApi.listarTodas(eid).subscribe((cats) => {
-      const ref = this.dialog.open(ProblemaFormDialog, { data: { categorias: cats }, width: '450px' });
-      ref.afterClosed().subscribe((payload?: ProblemaRequest) => {
-        if (payload) {
-          this.api.guardar(payload, eid).subscribe({
-            next: () => { this.snack.open('Problema creado', 'OK', { duration: 2000, panelClass: ['snack-success'] }); this.cargar(); },
+    // El owner elige empresa en el diálogo; los demás usan la de su JWT.
+    const isOwner = this.rol() === 'ADMIN_OWNER';
+    const eidJwt = this.auth.getEmpresaId();
+    if (!eidJwt && !isOwner) return;
+
+    if (isOwner) {
+      // El owner recibe empresas + categorías (para que elija ambas en el diálogo).
+      this.empresaApi.listarTodas().subscribe((empresas) => {
+        // Si hay empresa preseleccionada en el filtro, cargamos sus categorías;
+        // si no, todas (globales).
+        const pre = this.empresaId();
+        const catObs = pre > 0
+          ? this.catApi.listarTodas(pre)
+          : this.catApi.listarTodasGlobal();
+        catObs.subscribe((categorias) => {
+          const ref = this.dialog.open(ProblemaFormDialog, {
+            data: { empresas, categorias, empresaPreseleccionada: pre },
+            width: '450px',
           });
-        }
+          ref.afterClosed().subscribe((payload?: ProblemaRequest & { empresaId?: number }) => {
+            if (payload) {
+              const eid = payload.empresaId ?? pre ?? 0;
+              if (!eid) return;
+              const { empresaId, ...problemaData } = payload;
+              this.api.guardar(problemaData, eid).subscribe({
+                next: () => { this.snack.open('Problema creado', 'OK', { duration: 2000, panelClass: ['snack-success'] }); this.cargar(); },
+              });
+            }
+          });
+        });
       });
-    });
+    } else {
+      this.catApi.listarTodas(eidJwt!).subscribe((cats) => {
+        const ref = this.dialog.open(ProblemaFormDialog, { data: { categorias: cats }, width: '450px' });
+        ref.afterClosed().subscribe((payload?: ProblemaRequest) => {
+          if (payload) {
+            this.api.guardar(payload, eidJwt!).subscribe({
+              next: () => { this.snack.open('Problema creado', 'OK', { duration: 2000, panelClass: ['snack-success'] }); this.cargar(); },
+            });
+          }
+        });
+      });
+    }
   }
 
   eliminar(p: Problema): void {
     if (!confirm(`¿Desactivar ${p.nombre}?`)) return;
-    const eid = this.auth.getEmpresaId()!;
+    // El owner elimina usando la empresa del filtro si la eligió; si está en
+    // "Todas", usa la empresa a la que pertenece la categoría del problema.
+    // Los demás roles usan su empresa del JWT.
+    const eid = this.rol() === 'ADMIN_OWNER'
+      ? (this.empresaId() > 0 ? this.empresaId() : (p.empresaId ?? this.auth.getEmpresaId()!))
+      : this.auth.getEmpresaId()!;
+    if (!eid) return;
     this.api.eliminar(p.id, eid).subscribe({
       next: () => { this.snack.open('Problema desactivado', 'OK', { duration: 2000, panelClass: ['snack-success'] }); this.cargar(); },
     });
@@ -201,13 +287,31 @@ export class ProblemaListComponent implements OnInit, AfterViewInit {
       <form [formGroup]="form" class="flex flex-col gap-2">
         <mat-form-field appearance="outline"><mat-label>Nombre</mat-label><input matInput formControlName="nombre" /></mat-form-field>
         <mat-form-field appearance="outline"><mat-label>Descripción</mat-label><input matInput formControlName="descripcion" /></mat-form-field>
+        @if (empresas.length > 0) {
+          <mat-form-field appearance="outline">
+            <mat-label>Empresa</mat-label>
+            <mat-select formControlName="empresaId" (selectionChange)="onEmpresaChangeDialog($event.value)">
+              @for (e of empresas; track e.id) {
+                <mat-option [value]="e.id">{{ e.nombre }}</mat-option>
+              }
+            </mat-select>
+            @if (form.controls.empresaId.hasError('required') && form.controls.empresaId.touched) {
+              <mat-error>Selecciona una empresa</mat-error>
+            }
+          </mat-form-field>
+        }
         <mat-form-field appearance="outline">
           <mat-label>Categoría</mat-label>
-          <mat-select formControlName="categoriaId">
-            @for (c of data.categorias; track c.id) {
+          <mat-select formControlName="categoriaId" [disabled]="empresas.length > 0 && !form.controls.empresaId.value">
+            @for (c of categorias; track c.id) {
               <mat-option [value]="c.id">{{ c.nombre }}</mat-option>
             }
           </mat-select>
+          @if (empresas.length > 0 && !form.controls.empresaId.value) {
+            <mat-hint>Selecciona primero una empresa</mat-hint>
+          } @else if (form.controls.categoriaId.hasError('required') && form.controls.categoriaId.touched) {
+            <mat-error>Selecciona una categoría</mat-error>
+          }
         </mat-form-field>
       </form>
     </mat-dialog-content>
@@ -219,11 +323,43 @@ export class ProblemaListComponent implements OnInit, AfterViewInit {
 })
 export class ProblemaFormDialog {
   private fb = inject(FormBuilder);
-  protected data = inject<{ categorias: Categoria[] }>(MAT_DIALOG_DATA);
-  protected ref = inject(MatDialogRef<ProblemaFormDialog>);
+  private catApi = inject(CategoriaApiService);
+  private data = inject(MAT_DIALOG_DATA) as
+    { empresas?: Empresa[]; categorias: Categoria[]; empresaPreseleccionada?: number } | null;
+
+  // Empresas disponibles (solo el ADMIN_OWNER recibe la lista).
+  empresas: Empresa[] = this.data?.empresas ?? [];
+  // Categorías a mostrar (cambian según la empresa elegida por el owner).
+  categorias: Categoria[] = this.data?.categorias ?? [];
+
   form = this.fb.nonNullable.group({
     nombre: ['', [Validators.required, Validators.maxLength(100)]],
     descripcion: [''],
+    // empresaId solo aplica al owner; los demás no lo envían.
+    empresaId: [this.data?.empresaPreseleccionada ?? 0, [Validators.min(0)]],
     categoriaId: [0, [Validators.required, Validators.min(1)]],
   });
+
+  constructor() {
+    // Si el owner tiene empresa preseleccionada, cargamos sus categorías;
+    // si no, el listado inicial ya vino del padre.
+    const pre = this.data?.empresaPreseleccionada ?? 0;
+    if (this.empresas.length > 0 && pre > 0) {
+      this.recargarCategorias(pre);
+    }
+  }
+
+  /** Al cambiar la empresa dentro del diálogo, recarga sus categorías. */
+  onEmpresaChangeDialog(eid: number): void {
+    this.form.controls.categoriaId.setValue(0, { emitEvent: false });
+    this.recargarCategorias(eid);
+  }
+
+  private recargarCategorias(eid: number): void {
+    if (eid > 0) {
+      this.catApi.listarTodas(eid).subscribe(cats => this.categorias = cats);
+    } else {
+      this.catApi.listarTodasGlobal().subscribe(cats => this.categorias = cats);
+    }
+  }
 }

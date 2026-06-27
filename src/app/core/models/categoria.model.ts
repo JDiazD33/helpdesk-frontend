@@ -3,6 +3,8 @@ export interface Categoria {
   nombre: string;
   descripcion?: string;
   activa: boolean;
+  empresaId?: number;
+  empresaNombre?: string;
 }
 
 export interface CategoriaRequest {

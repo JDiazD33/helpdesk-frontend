@@ -5,6 +5,8 @@ export interface Problema {
   activo: boolean;
   categoriaId: number;
   categoriaNombre?: string;
+  empresaId?: number;
+  empresaNombre?: string;
 }
 
 export interface ProblemaRequest {

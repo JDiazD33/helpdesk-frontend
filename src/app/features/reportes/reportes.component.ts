@@ -25,6 +25,7 @@ import { UsuarioApiService } from '../../core/services/usuario-api.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { CsvExportService } from '../../core/services/csv-export.service';
 import { Ticket } from '../../core/models/ticket.model';
+import { RankingAgente } from '../../core/models/ticket.model';
 import { EstadoTicketLabel, PrioridadTicketLabel } from '../../core/models/enums';
 import { AsignarDialog } from '../tickets/ticket-detail/ticket-detail.component';
 import { Usuario } from '../../core/models/usuario.model';
@@ -363,9 +364,9 @@ const MESES_NOMBRE = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Ju
       </mat-tab>
 
       <!-- ============================================================== -->
-      <!-- TAB 5 — Ranking Comentarios                                     -->
+      <!-- TAB 5 — Mejores Agentes (por calificación)                     -->
       <!-- ============================================================== -->
-      <mat-tab label="Ranking comentarios">
+      <mat-tab label="Mejores agentes">
         <div class="p-4">
           <div class="flex justify-end mb-4">
             <button mat-flat-button color="primary" (click)="exportTab5()" [disabled]="tab5.data().length === 0">
@@ -377,12 +378,12 @@ const MESES_NOMBRE = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Ju
           } @else if (tab5.error()) {
             <div class="empty-state">
               <mat-icon class="empty-icon text-red-400">error_outline</mat-icon>
-              <p>No se pudo cargar el ranking.</p>
+              <p>No se pudo cargar el ranking de agentes.</p>
             </div>
           } @else if (tab5.data().length === 0) {
             <div class="empty-state">
-              <mat-icon class="empty-icon text-gray-400">chat</mat-icon>
-              <p>Sin comentarios registrados.</p>
+              <mat-icon class="empty-icon text-gray-400">star_border</mat-icon>
+              <p>Aún no hay agentes calificados.</p>
             </div>
           } @else {
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -390,17 +391,21 @@ const MESES_NOMBRE = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Ju
                 <mat-card-header><mat-card-title>Top 10</mat-card-title></mat-card-header>
                 <mat-card-content>
                   <div class="space-y-4">
-                    @for (r of tab5.data(); track r.usuario; let i = $index) {
+                    @for (r of tab5.data(); track r.agenteId; let i = $index) {
                       <div>
-                        <div class="flex justify-between text-sm mb-1">
-                          <span>{{ i + 1 }}. {{ r.usuario }}</span>
-                          <span class="font-semibold">{{ r.total }}</span>
-                        </div>
+                        <div class="flex justify-between items-center text-sm mb-1">
+                       <span>{{ i + 1 }}. {{ r.nombres }} {{ r.apellidos }}</span>
+                       <span class="font-semibold flex items-center gap-0.5">
+                        {{ r.promedio.toFixed(1) }}
+                       <mat-icon class="text-yellow-500 !w-4 !h-4 !text-[16px] flex items-center justify-center">star</mat-icon>
+                       </span>
+                     </div>
                         <mat-progress-bar
                           mode="determinate"
-                          [value]="(r.total / tab5MaxComentarios()) * 100"
+                          [value]="(r.promedio / 5) * 100"
                           color="accent">
                         </mat-progress-bar>
+                        <div class="text-xs text-gray-500 mt-1">{{ r.totalTickets }} ticket(s) calificado(s)</div>
                       </div>
                     }
                   </div>
@@ -410,13 +415,19 @@ const MESES_NOMBRE = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Ju
                 <mat-card-header><mat-card-title>Detalle</mat-card-title></mat-card-header>
                 <mat-card-content>
                   <table mat-table [dataSource]="tab5.data()" class="w-full">
-                    <ng-container matColumnDef="usuario">
-                      <th mat-header-cell *matHeaderCellDef>Usuario</th>
-                      <td mat-cell *matCellDef="let r">{{ r.usuario }}</td>
+                    <ng-container matColumnDef="agente">
+                      <th mat-header-cell *matHeaderCellDef>Agente</th>
+                      <td mat-cell *matCellDef="let r">{{ r.nombres }} {{ r.apellidos }}</td>
+                    </ng-container>
+                    <ng-container matColumnDef="promedio">
+                      <th mat-header-cell *matHeaderCellDef class="!text-right">Promedio</th>
+                      <td mat-cell *matCellDef="let r" class="!text-right font-semibold">
+                         {{ r.promedio.toFixed(1) }} <span class="text-amber-500 ml-1">★</span>
+                        </td>
                     </ng-container>
                     <ng-container matColumnDef="total">
-                      <th mat-header-cell *matHeaderCellDef class="!text-right">Total comentarios</th>
-                      <td mat-cell *matCellDef="let r" class="!text-right font-semibold">{{ r.total }}</td>
+                      <th mat-header-cell *matHeaderCellDef class="!text-right">Tickets calificados</th>
+                      <td mat-cell *matCellDef="let r" class="!text-right">{{ r.totalTickets }}</td>
                     </ng-container>
                     <tr mat-header-row *matHeaderRowDef="colsTab5"></tr>
                     <tr mat-row *matRowDef="let row; columns: colsTab5;"></tr>
@@ -528,7 +539,7 @@ export class ReportesComponent {
   protected colsTab2 = ['codigo', 'titulo', 'estado', 'prioridad', 'agente', 'fecha'];
   protected colsTab3 = ['codigo', 'titulo', 'prioridad', 'cliente', 'fecha', 'acciones'];
   protected colsTab4 = ['categoria', 'total'];
-  protected colsTab5 = ['usuario', 'total'];
+  protected colsTab5 = ['agente', 'promedio', 'total'];
 
   // ============================== TAB 1 state ==============================
   protected readonly tab1 = (() => {
@@ -619,7 +630,8 @@ export class ReportesComponent {
   });
 
   // ============================== TAB 5 state ==============================
-  private readonly tab5Raw = signal<{ usuario: string; total: number }[]>([]);
+  // Ranking de mejores agentes por promedio de calificación.
+  private readonly tab5Raw = signal<RankingAgente[]>([]);
   protected tab5 = {
     loading: signal(false),
     loaded: signal(false),
@@ -627,10 +639,6 @@ export class ReportesComponent {
     raw: this.tab5Raw,
     data: computed(() => this.tab5Raw().slice(0, 10)),
   };
-  protected tab5MaxComentarios = computed(() => {
-    const values = this.tab5.data().map((r) => r.total);
-    return values.length ? Math.max(...values) : 1;
-  });
 
   // ============================== TAB 6 state ==============================
   protected tab6 = {
@@ -766,14 +774,30 @@ export class ReportesComponent {
   loadTab5(): void {
     this.tab5.loading.set(true);
     this.tab5.error.set(false);
-    this.comentarios.rankingUsuarios(this.empresaIdFiltro() ?? undefined).subscribe({
-      next: (rows) => { this.tab5.raw.set(rows || []); this.tab5.loading.set(false); this.tab5.loaded.set(true); },
+    this.tickets.rankingAgentes(this.empresaIdFiltro() ?? undefined).subscribe({
+      next: (rows) => {
+        // El backend devuelve Object[]: [agenteId, nombres, apellidos, promedio, total].
+        const mapeado: RankingAgente[] = (rows || []).map((r: any) => ({
+          agenteId: r[0],
+          nombres: r[1],
+          apellidos: r[2],
+          promedio: Number(r[3]) || 0,
+          totalTickets: Number(r[4]) || 0,
+        }));
+        this.tab5.raw.set(mapeado);
+        this.tab5.loading.set(false);
+        this.tab5.loaded.set(true);
+      },
       error: () => { this.tab5.error.set(true); this.tab5.loading.set(false); this.tab5.loaded.set(true); },
     });
   }
   exportTab5(): void {
-    const data = this.tab5.raw().map((r: { usuario: string; total: number }) => ({ Usuario: r.usuario, 'Total comentarios': r.total }));
-    this.csv.export(data, 'ranking-comentarios.csv');
+    const data = this.tab5.raw().map((r) => ({
+      Agente: `${r.nombres} ${r.apellidos}`,
+      'Promedio': r.promedio.toFixed(1),
+      'Tickets calificados': r.totalTickets,
+    }));
+    this.csv.export(data, 'mejores-agentes.csv');
   }
 
   // ============================== TAB 6 ==============================
