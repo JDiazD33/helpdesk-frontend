@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+// Variables de SASS 
+$primary-color: #1B3A6B;
+$success-color: #10b981;
+$error-color: #ef4444;
+$info-color: #3b82f6;
+$warning-color: #f59e0b;
+$neutral-light: #f5f5f5;
+$neutral-dark: #374151;
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: 'Roboto', sans-serif;
+  background-color: $neutral-light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+// Anidamiento de SASS (Nesting) para contenedores de SnackBar
+.mat-mdc-snack-bar-container {
+  &.snack-success {
+    --mdc-snackbar-container-color: #{$success-color};
+    --mat-mdc-snack-bar-button-color: #fff;
+    --mdc-snackbar-supporting-text-color: #fff;
+  }
+  &.snack-error {
+    --mdc-snackbar-container-color: #{$error-color};
+    --mat-mdc-snack-bar-button-color: #fff;
+    --mdc-snackbar-supporting-text-color: #fff;
+  }
+  &.snack-info {
+    --mdc-snackbar-container-color: #{$info-color};
+    --mat-mdc-snack-bar-button-color: #fff;
+    --mdc-snackbar-supporting-text-color: #fff;
+  }
+}
+
+// Anidamiento de SASS (Nesting) para clases de Badge
+.badge {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+
+  &-abierto {
+    @apply bg-blue-100 text-blue-800;
+  }
+  &-progreso {
+    @apply bg-yellow-100 text-yellow-800;
+  }
+  &-enprogreso {
+    @apply bg-yellow-100 text-yellow-800;
+  }
+  &-resuelto {
+    @apply bg-green-100 text-green-800;
+  }
+  &-cerrado {
+    @apply bg-gray-100 text-gray-800;
+  }
+  &-baja {
+    @apply bg-gray-100 text-gray-700;
+  }
+  &-media {
+    @apply bg-blue-100 text-blue-700;
+  }
+  &-alta {
+    @apply bg-orange-100 text-orange-700;
+  }
+  &-critica {
+    @apply bg-red-100 text-red-700;
+  }
+}
+
+/* Sidebar session timer blink animation */
+@keyframes blink-animation {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.blink {
+  animation: blink-animation 1s infinite;
+}
