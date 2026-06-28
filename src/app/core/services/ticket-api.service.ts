@@ -1,6 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import {
   AsignarAgenteRequest,
@@ -96,6 +97,16 @@ export class TicketApiService {
   rankingAgentes(empresaId?: number): Observable<RankingAgente[]> {
     let params = new HttpParams();
     if (empresaId) params = params.set('empresaId', String(empresaId));
-    return this.http.get<RankingAgente[]>(`${this.url}/ranking-agentes`, { params });
+    // El backend devuelve Object[]: [agenteId, nombres, apellidos, promedio, total].
+    // Mapeamos aquí a RankingAgente para que todas las vistas reciban objetos con claves.
+    return this.http.get<any[]>(`${this.url}/ranking-agentes`, { params }).pipe(
+      map((rows) => (rows || []).map((r) => ({
+        agenteId: r[0],
+        nombres: r[1],
+        apellidos: r[2],
+        promedio: Number(r[3]) || 0,
+        totalTickets: Number(r[4]) || 0,
+      })))
+    );
   }
 }

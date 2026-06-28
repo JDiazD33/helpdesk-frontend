@@ -368,8 +368,11 @@ const ESTADO_LABELS: Record<string, string> = {
                   <ng-container matColumnDef="promedio">
                     <th mat-header-cell *matHeaderCellDef class="!text-right">Promedio</th>
                     <td mat-cell *matCellDef="let r" class="!text-right font-semibold">
-                      {{ r.promedio.toFixed(1) }} ⭐
-                    </td>
+                  <div class="flex items-center justify-end gap-0.5">
+                     {{ r.promedio.toFixed(1) }}
+              <mat-icon class="text-yellow-500 !w-4 !h-4 !text-[16px] flex items-center justify-center">star</mat-icon>
+               </div>
+                </td>
                   </ng-container>
                   <ng-container matColumnDef="total">
                     <th mat-header-cell *matHeaderCellDef class="!text-right">Tickets</th>

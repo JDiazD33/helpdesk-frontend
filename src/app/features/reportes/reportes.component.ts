@@ -776,15 +776,8 @@ export class ReportesComponent {
     this.tab5.error.set(false);
     this.tickets.rankingAgentes(this.empresaIdFiltro() ?? undefined).subscribe({
       next: (rows) => {
-        // El backend devuelve Object[]: [agenteId, nombres, apellidos, promedio, total].
-        const mapeado: RankingAgente[] = (rows || []).map((r: any) => ({
-          agenteId: r[0],
-          nombres: r[1],
-          apellidos: r[2],
-          promedio: Number(r[3]) || 0,
-          totalTickets: Number(r[4]) || 0,
-        }));
-        this.tab5.raw.set(mapeado);
+        // El servicio ya mapea las filas a RankingAgente.
+        this.tab5.raw.set(rows || []);
         this.tab5.loading.set(false);
         this.tab5.loaded.set(true);
       },
