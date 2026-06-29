@@ -229,20 +229,18 @@ export class TicketFormComponent implements OnInit {
     if (!eid || !uid) return;
     this.loading.set(true);
     const v = this.form.getRawValue();
-    this.ticketApi.guardarConComentario({
-      ticket: {
-        titulo: v.titulo,
-        descripcion: v.descripcion,
-        prioridad: v.prioridad,
-        telefonoReportante: v.telefonoReportante,
-        correoReportante: v.correoReportante,
-        categoria: { id: v.categoriaId, nombre: '' },
-        problema: { id: v.problemaId, nombre: '' },
-        cliente: { id: uid, nombres: '', apellidos: '' },
-        empresa: { id: eid, nombre: '' },
-      },
-      mensajeInicial: v.descripcion,
-      usuarioComentarioId: uid,
+    // Se guarda solo el ticket (sin comentario inicial): la descripción ya queda
+    // en el detalle del ticket, y la conversación queda reservada para el agente.
+    this.ticketApi.guardar({
+      titulo: v.titulo,
+      descripcion: v.descripcion,
+      prioridad: v.prioridad,
+      telefonoReportante: v.telefonoReportante,
+      correoReportante: v.correoReportante,
+      categoria: { id: v.categoriaId, nombre: '' },
+      problema: { id: v.problemaId, nombre: '' },
+      cliente: { id: uid, nombres: '', apellidos: '' },
+      empresa: { id: eid, nombre: '' },
     }).subscribe({
       next: () => {
         this.loading.set(false);
