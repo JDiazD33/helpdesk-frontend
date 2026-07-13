@@ -58,4 +58,5 @@ export class UsuarioApiService {
   }
   actualizar(id: number, payload: UsuarioRequest): Observable<Usuario> { return this.http.put<Usuario>(`${this.url}/${id}`, payload); }
   eliminar(id: number): Observable<void> { return this.http.delete<void>(`${this.url}/${id}`); }
+  activar(id: number): Observable<Usuario> { return this.http.put<Usuario>(`${this.url}/${id}/activar`, {}); }
 }

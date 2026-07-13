@@ -415,7 +415,7 @@ export class TicketDetailComponent implements OnInit {
   }
 
   abrirAsignar(): void {
-    const eid = this.auth.getEmpresaId();
+    const eid = this.ticket()?.empresa?.id ?? this.auth.getEmpresaId();
     if (!eid) return;
     this.usuarioApi.listarAgentes(eid).subscribe((agentes) => {
       const ref = this.dialog.open(AsignarDialog, { data: { agentes }, width: '400px' });

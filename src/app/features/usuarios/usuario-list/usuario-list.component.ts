@@ -12,6 +12,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { FormsModule } from '@angular/forms';
@@ -32,6 +33,7 @@ import { Empresa } from '../../../core/models/empresa.model';
     CommonModule, FormsModule, ReactiveFormsModule, MatTableModule, MatPaginatorModule,
     MatCardModule, MatFormFieldModule, MatInputModule, MatSelectModule, MatOptionModule,
     MatIconModule, MatButtonModule, MatCheckboxModule, MatProgressSpinnerModule, MatDialogModule,
+    MatTooltipModule,
   ],
   template: `
     <div class="flex justify-between items-center mb-4">
@@ -86,7 +88,13 @@ import { Empresa } from '../../../core/models/empresa.model';
             <ng-container matColumnDef="acciones">
               <th mat-header-cell *matHeaderCellDef>Acciones</th>
               <td mat-cell *matCellDef="let u">
-                <button mat-icon-button (click)="eliminar(u)"><mat-icon color="warn">delete</mat-icon></button>
+                @if (u.id === currentUserId()) {
+                  <span class="text-xs text-gray-400 italic">Tú</span>
+                } @else if (u.activo) {
+                  <button mat-icon-button matTooltip="Desactivar" (click)="eliminar(u)"><mat-icon color="warn">delete</mat-icon></button>
+                } @else {
+                  <button mat-icon-button matTooltip="Activar" (click)="activar(u)"><mat-icon style="color:#16a34a">check_circle</mat-icon></button>
+                }
               </td>
             </ng-container>
             <tr mat-header-row *matHeaderRowDef="cols"></tr>
@@ -109,6 +117,7 @@ export class UsuarioListComponent implements OnInit, AfterViewInit, OnDestroy {
 
   protected loading = signal(true);
   protected rol = computed(() => this.auth.getRol());
+  protected currentUserId = computed(() => this.auth.getUserId());
   protected cols = ['nombre', 'email', 'rol', 'activo', 'acciones'];
   protected searchTerm = signal('');
   protected rolesDisponibles = signal<Rol[]>([]);
@@ -215,6 +224,13 @@ export class UsuarioListComponent implements OnInit, AfterViewInit, OnDestroy {
     if (!confirm(`¿Desactivar a ${u.nombres} ${u.apellidos}?`)) return;
     this.api.eliminar(u.id).subscribe({
       next: () => { this.snack.open('Usuario desactivado', 'OK', { duration: 2000, panelClass: ['snack-success'] }); this.cargar(); },
+    });
+  }
+
+  activar(u: Usuario): void {
+    if (!confirm(`¿Activar a ${u.nombres} ${u.apellidos}?`)) return;
+    this.api.activar(u.id).subscribe({
+      next: () => { this.snack.open('Usuario activado', 'OK', { duration: 2000, panelClass: ['snack-success'] }); this.cargar(); },
     });
   }
 }
