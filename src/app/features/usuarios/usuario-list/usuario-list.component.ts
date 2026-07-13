@@ -315,8 +315,15 @@ export class UsuarioFormDialog {
     password: ['', [Validators.required, Validators.minLength(6)]],
     telefono: ['', [Validators.pattern('^[0-9]{9}$')]],
     rolId: [0, [Validators.required, Validators.min(1)]],
-    empresaId: [0, [Validators.required, Validators.min(1)]],
+    empresaId: [0],
   });
+
+  constructor() {
+    if (this.data.empresas && this.data.empresas.length > 0) {
+      this.form.controls.empresaId.setValidators([Validators.required, Validators.min(1)]);
+      this.form.controls.empresaId.updateValueAndValidity();
+    }
+  }
 
   /** Permite solo números y teclas de edición en el campo teléfono. */
   soloNumeros(event: KeyboardEvent): void {

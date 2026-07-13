@@ -202,11 +202,11 @@ export class EmpresaListComponent implements OnInit, AfterViewInit {
       <form [formGroup]="form" class="flex flex-col gap-2">
         <mat-form-field appearance="outline">
           <mat-label>RUC</mat-label>
-          <input matInput formControlName="ruc" maxlength="10" (keydown)="soloNumeros($event)" placeholder="1234567890" />
+          <input matInput formControlName="ruc" maxlength="11" (keydown)="soloNumeros($event)" placeholder="12345678901" />
           @if (form.controls.ruc.hasError('required') && form.controls.ruc.touched) {
             <mat-error>Obligatorio</mat-error>
           } @else if (form.controls.ruc.hasError('pattern')) {
-            <mat-error>Solo números, máximo 10 dígitos</mat-error>
+            <mat-error>Debe tener 11 dígitos</mat-error>
           }
         </mat-form-field>
         <mat-form-field appearance="outline">
@@ -248,7 +248,7 @@ export class EmpresaFormDialog {
   private fb = inject(FormBuilder);
   protected ref = inject(MatDialogRef<EmpresaFormDialog>);
   form = this.fb.nonNullable.group({
-    ruc: ['', [Validators.required, Validators.pattern('^[0-9]{1,10}$')]],
+    ruc: ['', [Validators.required, Validators.pattern('^[0-9]{11}$')]],
     nombre: ['', [Validators.required, Validators.maxLength(150), Validators.pattern('^[a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\\s.,&-]+$')]],
     telefonoContacto: ['', [Validators.required, Validators.pattern('^[0-9]{9}$')]],
     correoContacto: ['', [Validators.required, Validators.email]],

@@ -156,10 +156,12 @@ import { environment } from '../../../../environments/environment';
             }
             @if (rol() === 'ADMIN_EMPRESA' || rol() === 'ADMIN_OWNER') {
               @if (ticket()!.estado !== 'RESUELTO' && ticket()!.estado !== 'CERRADO') {
-                <button mat-stroked-button color="primary" (click)="abrirAsignar()">
-                  <mat-icon>person_add</mat-icon> Asignar Agente
-                </button>
-                <button mat-stroked-button color="accent" (click)="abrirCambiarEstado()">
+                @if (!ticket()!.agenteAsignado) {
+                  <button mat-stroked-button color="primary" (click)="abrirAsignar()">
+                    <mat-icon>person_add</mat-icon> Asignar Agente
+                  </button>
+                }
+                <button mat-stroked-button color="accent" class="mt-2" (click)="abrirCambiarEstado()">
                   <mat-icon>sync</mat-icon> Cambiar Estado
                 </button>
               } @else {
