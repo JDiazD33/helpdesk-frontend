@@ -180,11 +180,11 @@ export class TicketFormComponent implements OnInit {
     // (rol === 'ADMIN_EMPRESA') dejaba al CLIENTE y al AGENTE cayendo
     // en el branch global y veían las categorías de TODAS las empresas.
     if (this.rol() === 'ADMIN_OWNER') {
-      this.categoriaApi.listarTodasGlobal().subscribe({
+      this.categoriaApi.listarActivasGlobal().subscribe({
         next: (cs) => this.categorias.set(cs.map((c) => ({ id: c.id, nombre: c.nombre }))),
       });
     } else if (eid) {
-      this.categoriaApi.listarPorEmpresa(eid).subscribe({
+      this.categoriaApi.listarActivas(eid).subscribe({
         next: (cs) => this.categorias.set(cs.map((c) => ({ id: c.id, nombre: c.nombre }))),
       });
     }

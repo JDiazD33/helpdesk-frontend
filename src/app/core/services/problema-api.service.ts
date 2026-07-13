@@ -49,4 +49,7 @@ export class ProblemaApiService {
   eliminar(id: number, empresaId: number): Observable<void> {
     return this.http.delete<void>(`${this.url}/${id}`, { params: new HttpParams().set('empresaId', String(empresaId)) });
   }
+  activar(id: number, empresaId: number): Observable<Problema> {
+    return this.http.put<Problema>(`${this.url}/${id}/activar`, null, { params: new HttpParams().set('empresaId', String(empresaId)) });
+  }
 }

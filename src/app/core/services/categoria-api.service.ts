@@ -31,6 +31,9 @@ export class CategoriaApiService {
   listarActivas(empresaId: number): Observable<Categoria[]> {
     return this.http.get<Categoria[]>(`${this.url}/activas`, { params: new HttpParams().set('empresaId', String(empresaId)) });
   }
+  listarActivasGlobal(): Observable<Categoria[]> {
+    return this.http.get<Categoria[]>(`${this.url}/activas/todas`);
+  }
   obtenerPorId(id: number, empresaId: number): Observable<Categoria> {
     return this.http.get<Categoria>(`${this.url}/${id}`, { params: new HttpParams().set('empresaId', String(empresaId)) });
   }
@@ -42,5 +45,8 @@ export class CategoriaApiService {
   }
   eliminar(id: number, empresaId: number): Observable<void> {
     return this.http.delete<void>(`${this.url}/${id}`, { params: new HttpParams().set('empresaId', String(empresaId)) });
+  }
+  activar(id: number, empresaId: number): Observable<Categoria> {
+    return this.http.put<Categoria>(`${this.url}/${id}/activar`, null, { params: new HttpParams().set('empresaId', String(empresaId)) });
   }
 }

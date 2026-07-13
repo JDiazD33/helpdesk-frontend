@@ -12,6 +12,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatOptionModule } from '@angular/material/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { ProblemaApiService } from '../../../core/services/problema-api.service';
 import { CategoriaApiService } from '../../../core/services/categoria-api.service';
@@ -28,7 +29,7 @@ import { AuthService } from '../../../core/auth/auth.service';
   imports: [
     CommonModule, MatTableModule, MatPaginatorModule, MatCardModule, MatIconModule,
     MatButtonModule, MatProgressSpinnerModule, MatDialogModule, MatFormFieldModule,
-    MatInputModule, MatSelectModule, MatOptionModule, ReactiveFormsModule,
+    MatInputModule, MatSelectModule, MatOptionModule, ReactiveFormsModule, MatTooltipModule,
   ],
   template: `
     <div class="flex justify-between items-center mb-4">
@@ -88,7 +89,11 @@ import { AuthService } from '../../../core/auth/auth.service';
             <ng-container matColumnDef="acciones">
               <th mat-header-cell *matHeaderCellDef>Acciones</th>
               <td mat-cell *matCellDef="let p">
-                <button mat-icon-button (click)="eliminar(p)"><mat-icon color="warn">delete</mat-icon></button>
+                @if (p.activo) {
+                  <button mat-icon-button (click)="eliminar(p)" matTooltip="Desactivar"><mat-icon color="warn">delete</mat-icon></button>
+                } @else {
+                  <button mat-icon-button (click)="activar(p)" matTooltip="Activar"><mat-icon class="text-green-600">check_circle</mat-icon></button>
+                }
               </td>
             </ng-container>
             <tr mat-header-row *matHeaderRowDef="cols"></tr>
@@ -229,8 +234,8 @@ export class ProblemaListComponent implements OnInit, AfterViewInit {
         // si no, todas (globales).
         const pre = this.empresaId();
         const catObs = pre > 0
-          ? this.catApi.listarTodas(pre)
-          : this.catApi.listarTodasGlobal();
+          ? this.catApi.listarActivas(pre)
+          : this.catApi.listarActivasGlobal();
         catObs.subscribe((categorias) => {
           const ref = this.dialog.open(ProblemaFormDialog, {
             data: { empresas, categorias, empresaPreseleccionada: pre },
@@ -249,7 +254,7 @@ export class ProblemaListComponent implements OnInit, AfterViewInit {
         });
       });
     } else {
-      this.catApi.listarTodas(eidJwt!).subscribe((cats) => {
+      this.catApi.listarActivas(eidJwt!).subscribe((cats) => {
         const ref = this.dialog.open(ProblemaFormDialog, { data: { categorias: cats }, width: '450px' });
         ref.afterClosed().subscribe((payload?: ProblemaRequest) => {
           if (payload) {
@@ -273,6 +278,16 @@ export class ProblemaListComponent implements OnInit, AfterViewInit {
     if (!eid) return;
     this.api.eliminar(p.id, eid).subscribe({
       next: () => { this.snack.open('Problema desactivado', 'OK', { duration: 2000, panelClass: ['snack-success'] }); this.cargar(); },
+    });
+  }
+
+  activar(p: Problema): void {
+    const eid = this.rol() === 'ADMIN_OWNER'
+      ? (this.empresaId() > 0 ? this.empresaId() : (p.empresaId ?? this.auth.getEmpresaId()!))
+      : this.auth.getEmpresaId()!;
+    if (!eid) return;
+    this.api.activar(p.id, eid).subscribe({
+      next: () => { this.snack.open('Problema activado', 'OK', { duration: 2000, panelClass: ['snack-success'] }); this.cargar(); },
     });
   }
 }
@@ -377,9 +392,9 @@ export class ProblemaFormDialog {
 
   private recargarCategorias(eid: number): void {
     if (eid > 0) {
-      this.catApi.listarTodas(eid).subscribe(cats => this.categorias = cats);
+      this.catApi.listarActivas(eid).subscribe(cats => this.categorias = cats);
     } else {
-      this.catApi.listarTodasGlobal().subscribe(cats => this.categorias = cats);
+      this.catApi.listarActivasGlobal().subscribe(cats => this.categorias = cats);
     }
   }
 }

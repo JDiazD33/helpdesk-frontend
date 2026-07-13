@@ -9,6 +9,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ReactiveFormsModule, FormBuilder, Validators, FormsModule } from '@angular/forms';
 import { Subject, EMPTY, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
 import { CategoriaApiService } from '../../../core/services/categoria-api.service';
@@ -24,7 +25,7 @@ import { AuthService } from '../../../core/auth/auth.service';
   imports: [
     CommonModule, FormsModule, MatCardModule, MatIconModule, MatButtonModule,
     MatProgressSpinnerModule, MatDialogModule, MatFormFieldModule, MatInputModule,
-    MatSelectModule, ReactiveFormsModule,
+    MatSelectModule, ReactiveFormsModule, MatTooltipModule,
   ],
   template: `
     <div class="flex justify-between items-center mb-4">
@@ -97,7 +98,11 @@ import { AuthService } from '../../../core/auth/auth.service';
                       </span>
                     </td>
                     <td class="py-3 px-4">
-                      <button mat-icon-button (click)="eliminar(c)"><mat-icon color="warn">delete</mat-icon></button>
+                      @if (c.activa) {
+                        <button mat-icon-button (click)="eliminar(c)" matTooltip="Desactivar"><mat-icon color="warn">delete</mat-icon></button>
+                      } @else {
+                        <button mat-icon-button (click)="activar(c)" matTooltip="Activar"><mat-icon class="text-green-600">check_circle</mat-icon></button>
+                      }
                     </td>
                   </tr>
                 }
@@ -269,6 +274,16 @@ export class CategoriaListComponent implements OnInit, OnDestroy {
     if (!eid) return;
     this.api.eliminar(c.id, eid).subscribe({
       next: () => { this.snack.open('Categoría desactivada', 'OK', { duration: 2000, panelClass: ['snack-success'] }); this.fetchTrigger.next(); },
+    });
+  }
+
+  activar(c: Categoria): void {
+    const eid = this.rol() === 'ADMIN_OWNER'
+      ? (c.empresaId ?? this.auth.getEmpresaId()!)
+      : this.auth.getEmpresaId()!;
+    if (!eid) return;
+    this.api.activar(c.id, eid).subscribe({
+      next: () => { this.snack.open('Categoría activada', 'OK', { duration: 2000, panelClass: ['snack-success'] }); this.fetchTrigger.next(); },
     });
   }
 }
