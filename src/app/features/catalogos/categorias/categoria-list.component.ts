@@ -339,6 +339,7 @@ export class CategoriaFormDialog {
     { empresas: Empresa[]; empresaPreseleccionada: number } | null;
 
   // Empresas disponibles para elegir (solo el ADMIN_OWNER recibe la lista).
+  // Empresas disponibles para elegir (solo el ADMIN_OWNER recibe la lista). s
   empresas: Empresa[] = this.data?.empresas ?? [];
 
   form = this.fb.nonNullable.group({
