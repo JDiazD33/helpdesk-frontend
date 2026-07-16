@@ -36,6 +36,35 @@ import { PrioridadTicket } from '../../../core/models/enums';
     <mat-card>
       <mat-card-content>
         <form [formGroup]="form" (ngSubmit)="submit()" class="flex flex-col gap-3 max-w-2xl">
+          <!-- 1. Clasificación del ticket (estructura primero, antes que el texto libre) -->
+          <div class="grid grid-cols-2 gap-3">
+            <mat-form-field appearance="outline">
+              <mat-label>Categoría</mat-label>
+              <mat-select formControlName="categoriaId">
+                @for (c of categorias(); track c.id) {
+                  <mat-option [value]="c.id">{{ c.nombre }}</mat-option>
+                }
+              </mat-select>
+              @if (form.controls.categoriaId.hasError('required') && form.controls.categoriaId.touched) {
+                <mat-error>Obligatorio</mat-error>
+              }
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Problema</mat-label>
+              <mat-select formControlName="problemaId" [disabled]="!form.controls.categoriaId.value">
+                @for (p of problemas(); track p.id) {
+                  <mat-option [value]="p.id">{{ p.nombre }}</mat-option>
+                }
+              </mat-select>
+              @if (!form.controls.categoriaId.value) {
+                <mat-hint>Selecciona primero una categoría</mat-hint>
+              } @else if (form.controls.problemaId.hasError('required') && form.controls.problemaId.touched) {
+                <mat-error>Obligatorio</mat-error>
+              }
+            </mat-form-field>
+          </div>
+
+          <!-- 2. Texto libre: ahora que ya clasificó, el título/descripción son más útiles -->
           <mat-form-field appearance="outline">
             <mat-label>Título / Asunto</mat-label>
             <input matInput formControlName="titulo" maxlength="150" placeholder="Ej: No puedo acceder al sistema" />
@@ -69,42 +98,17 @@ import { PrioridadTicket } from '../../../core/models/enums';
             </div>
           </mat-form-field>
 
-          <div class="grid grid-cols-2 gap-3">
-            <mat-form-field appearance="outline">
-              <mat-label>Prioridad</mat-label>
-              <mat-select formControlName="prioridad">
-                @for (p of prioridades; track p) {
-                  <mat-option [value]="p">{{ p }}</mat-option>
-                }
-              </mat-select>
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Categoría</mat-label>
-              <mat-select formControlName="categoriaId">
-                @for (c of categorias(); track c.id) {
-                  <mat-option [value]="c.id">{{ c.nombre }}</mat-option>
-                }
-              </mat-select>
-              @if (form.controls.categoriaId.hasError('required') && form.controls.categoriaId.touched) {
-                <mat-error>Obligatorio</mat-error>
-              }
-            </mat-form-field>
-          </div>
-
+          <!-- 3. Prioridad -->
           <mat-form-field appearance="outline">
-            <mat-label>Problema</mat-label>
-            <mat-select formControlName="problemaId" [disabled]="!form.controls.categoriaId.value">
-              @for (p of problemas(); track p.id) {
-                <mat-option [value]="p.id">{{ p.nombre }}</mat-option>
+            <mat-label>Prioridad</mat-label>
+            <mat-select formControlName="prioridad">
+              @for (p of prioridades; track p) {
+                <mat-option [value]="p">{{ p }}</mat-option>
               }
             </mat-select>
-            @if (!form.controls.categoriaId.value) {
-              <mat-hint>Selecciona primero una categoría</mat-hint>
-            } @else if (form.controls.problemaId.hasError('required') && form.controls.problemaId.touched) {
-              <mat-error>Obligatorio</mat-error>
-            }
           </mat-form-field>
 
+          <!-- 4. Datos de contacto: pre-sugeridos del usuario autenticado, editables -->
           <div class="grid grid-cols-2 gap-3">
             <mat-form-field appearance="outline">
               <mat-label>Teléfono reportante</mat-label>
@@ -129,6 +133,7 @@ import { PrioridadTicket } from '../../../core/models/enums';
               } @else if (form.controls.correoReportante.hasError('email')) {
                 <mat-error>Ingresa un correo electrónico válido</mat-error>
               }
+              <mat-hint>Sugerido de tu cuenta; puedes cambiarlo si el contacto es otro.</mat-hint>
             </mat-form-field>
           </div>
 
@@ -173,6 +178,13 @@ export class TicketFormComponent implements OnInit {
 
   ngOnInit(): void {
     const eid = this.auth.getEmpresaId();
+
+    // Pre-sugerir el correo del usuario autenticado en "correo reportante".
+    // Es solo una sugerencia: el usuario puede editarlo si reporta para otra persona.
+    const emailSesion = this.auth.getEmail();
+    if (emailSesion && !this.form.controls.correoReportante.value) {
+      this.form.controls.correoReportante.setValue(emailSesion);
+    }
 
     // El único rol con vista global es ADMIN_OWNER.
     // ADMIN_EMPRESA, AGENTE y CLIENTE son tenant-scoped: siempre filtran

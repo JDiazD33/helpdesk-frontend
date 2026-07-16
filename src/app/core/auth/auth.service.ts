@@ -79,6 +79,7 @@ export class AuthService {
   getRol(): string | null { return this.state()?.rol ?? null; }
   getEmpresaId(): number | null { return this.state()?.empresaId ?? null; }
   getUserId(): number | null { return this.state()?.usuarioId ?? null; }
+  getEmail(): string | null { return this.state()?.email ?? null; }
   getFullName(): string {
     const r = this.state();
     return r ? `${r.nombres} ${r.apellidos}`.trim() : '';
