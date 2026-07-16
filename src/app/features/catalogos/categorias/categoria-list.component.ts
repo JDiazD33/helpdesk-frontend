@@ -343,10 +343,17 @@ export class CategoriaFormDialog {
 
   form = this.fb.nonNullable.group({
     // Si viene empresa preseleccionada del filtro, se usa; si no, 0 (obliga a elegir).
-    empresaId: [this.data?.empresaPreseleccionada ?? 0, [Validators.required, Validators.min(1)]],
+    empresaId: [this.data?.empresaPreseleccionada ?? 0],
     nombre: ['', [Validators.required, Validators.maxLength(50), Validators.pattern('^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]+$')]],
     descripcion: ['', [Validators.pattern('^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]+$')]],
   });
+
+  constructor() {
+    if (this.empresas.length > 0) {
+      this.form.controls.empresaId.setValidators([Validators.required, Validators.min(1)]);
+      this.form.controls.empresaId.updateValueAndValidity();
+    }
+  }
 
   soloTexto(event: KeyboardEvent): void {
     const permitido = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]$/.test(event.key);
