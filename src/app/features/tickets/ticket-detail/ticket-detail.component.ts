@@ -94,6 +94,10 @@ import { environment } from '../../../../environments/environment';
                         {{ (hoverCalificacion() || 0) }} / 5
                       </span>
                     </div>
+                    <button mat-stroked-button color="warn" class="mt-2" (click)="reabrir()" [disabled]="reabriendo()">
+                      <mat-icon>replay</mat-icon> Reabrir ticket
+                    </button>
+                    <p class="text-xs text-gray-500 mt-1">Si la solución no fue satisfactoria, reabre el ticket y el agente lo retomará.</p>
                   } @else {
                     <div class="text-sm font-medium text-gray-700 mb-1">Tu calificación:</div>
                     <div class="flex items-center gap-1">
@@ -250,6 +254,7 @@ export class TicketDetailComponent implements OnInit {
   // Calificación del agente por parte del cliente.
   protected hoverCalificacion = signal(0);
   protected calificando = signal(false);
+  protected reabriendo = signal(false);
 
   protected rol = computed(() => this.auth.getRol());
   protected userId = computed(() => this.auth.getUserId());
@@ -404,6 +409,30 @@ export class TicketDetailComponent implements OnInit {
     });
   }
 
+  /** El cliente dueño reabre un ticket RESUELTO que no fue satisfactorio. */
+  reabrir(): void {
+    const ticket = this.ticket();
+    if (!ticket) return;
+    const ref = this.dialog.open(ReabrirConfirmDialog, { width: '420px' });
+    ref.afterClosed().subscribe((confirmado: boolean | undefined) => {
+      if (!confirmado) return;
+      this.reabriendo.set(true);
+      this.ticketApi.reabrirTicket(ticket.id).subscribe({
+        next: (t) => {
+          this.ticket.set(t);
+          this.reabriendo.set(false);
+          this.cargarComentarios(t.id);
+          this.snack.open('Ticket reabierto. El agente lo retomará.', 'OK', { duration: 2500, panelClass: ['snack-success'] });
+        },
+        error: (err) => {
+          this.reabriendo.set(false);
+          const msg = err?.error?.message || 'No se pudo reabrir el ticket.';
+          this.snack.open(msg, 'Cerrar', { duration: 4000, panelClass: ['snack-error'] });
+        },
+      });
+    });
+  }
+
   verImagenCierre(): void {
     const t = this.ticket();
     if (!t?.imagenCierre) return;
@@ -518,6 +547,27 @@ export class EstadoDialog {
   protected estado: EstadoTicket = this.data.estadoActual;
   protected justificacion = '';
 }
+
+@Component({
+  selector: 'app-reabrir-confirm-dialog',
+  standalone: true,
+  imports: [CommonModule, MatDialogModule, MatButtonModule, MatIconModule],
+  template: `
+    <h2 mat-dialog-title class="flex items-center gap-2">
+      <mat-icon class="text-orange-500">replay</mat-icon>
+      Reabrir ticket
+    </h2>
+    <mat-dialog-content>
+      <p>¿Seguro que querés reabrir este ticket?</p>
+      <p class="text-sm text-gray-600">Si la solución no fue satisfactoria, el ticket volverá a <strong>En progreso</strong> y el agente tendrá que retomarlo. No podrás calificar hasta que lo vuelva a resolver.</p>
+    </mat-dialog-content>
+    <mat-dialog-actions align="end">
+      <button mat-button mat-dialog-close>Cancelar</button>
+      <button mat-flat-button color="warn" [mat-dialog-close]="true">Sí, reabrir</button>
+    </mat-dialog-actions>
+  `,
+})
+export class ReabrirConfirmDialog {}
 
 @Component({
   selector: 'app-imagen-cierre-dialog',

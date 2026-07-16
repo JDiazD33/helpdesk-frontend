@@ -88,9 +88,14 @@ export class TicketApiService {
     return this.http.patch<Ticket>(`${this.url}/${id}/cierre`, payload);
   }
 
-  /** El cliente dueño califica (1-5) la atención de un ticket resuelto. */
+  /** El cliente dueño califica (1-5) la atención de un ticket resuelto. Al calificar, el backend cierra el ticket. */
   calificar(id: number, calificacion: number): Observable<Ticket> {
     return this.http.post<Ticket>(`${this.url}/${id}/calificar`, { calificacion });
+  }
+
+  /** El cliente dueño reabre un ticket RESUELTO que no fue satisfactorio. Vuelve a EN_PROGRESO. */
+  reabrirTicket(id: number): Observable<Ticket> {
+    return this.http.post<Ticket>(`${this.url}/${id}/reabrir`, {});
   }
 
   /** Ranking de mejores agentes por promedio de calificación. */

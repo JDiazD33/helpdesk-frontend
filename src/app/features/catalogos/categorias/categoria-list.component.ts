@@ -338,7 +338,7 @@ export class CategoriaFormDialog {
   private data = inject(MAT_DIALOG_DATA, { optional: true }) as
     { empresas: Empresa[]; empresaPreseleccionada: number } | null;
 
-  // Empresas disponibles para elegir (solo el ADMIN_OWNER recibe la lista).
+  // Empresas disponibles para elegir (solo el ADMIN_OWNER recibe la lista). s
   empresas: Empresa[] = this.data?.empresas ?? [];
 
   form = this.fb.nonNullable.group({
@@ -354,7 +354,7 @@ export class CategoriaFormDialog {
       this.form.controls.empresaId.updateValueAndValidity();
     }
   }
-
+  
   soloTexto(event: KeyboardEvent): void {
     const permitido = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]$/.test(event.key);
     const control = ['Backspace','Delete','ArrowLeft','ArrowRight','Tab'].includes(event.key);
