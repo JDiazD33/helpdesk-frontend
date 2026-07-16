@@ -343,7 +343,7 @@ export class CategoriaFormDialog {
   empresas: Empresa[] = this.data?.empresas ?? [];
 
   form = this.fb.nonNullable.group({
-    // Si viene empresa preseleccionada del filtro, se usa; si no, 0 (obliga a elegir).
+    // Si viene empresa preseleccionada del filtro, se usa; si no, 0 (obliga a elegir). ss
     empresaId: [this.data?.empresaPreseleccionada ?? 0],
     nombre: ['', [Validators.required, Validators.maxLength(50), Validators.pattern('^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]+$')]],
     descripcion: ['', [Validators.pattern('^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]+$')]],
